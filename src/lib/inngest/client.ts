@@ -2,5 +2,5 @@ import { Inngest } from "inngest";
 
 export const inngest = new Inngest({
   id: "altcointurk-team-hub",
-  name: "Altcointurk Team Hub",
+  // INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY are read automatically from env
 });
