@@ -20,33 +20,45 @@ export async function saveApiKeys(data: SaveApiKeysInput) {
     return { error: "Oturum bulunamadı." };
   }
 
-  // First verify the credentials
-  const verification = await verifyCredentials({
-    apiKey: data.xApiKey,
-    apiSecret: data.xApiSecret,
-    accessToken: data.xAccessToken,
-    accessSecret: data.xAccessSecret,
-  });
+  try {
+    // Verify credentials with 8s timeout (Vercel free = 10s limit)
+    const verificationPromise = verifyCredentials({
+      apiKey: data.xApiKey,
+      apiSecret: data.xApiSecret,
+      accessToken: data.xAccessToken,
+      accessSecret: data.xAccessSecret,
+    });
 
-  if (!verification.success) {
-    return { error: `API doğrulama başarısız: ${verification.error}` };
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Twitter API doğrulaması zaman aşımına uğradı (8s)")), 8000)
+    );
+
+    const verification = await Promise.race([verificationPromise, timeoutPromise]);
+
+    if (!verification.success) {
+      return { error: `API doğrulama başarısız: ${verification.error}` };
+    }
+
+    // Encrypt and save
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        xApiKey: encrypt(data.xApiKey),
+        xApiSecret: encrypt(data.xApiSecret),
+        xAccessToken: encrypt(data.xAccessToken),
+        xAccessSecret: encrypt(data.xAccessSecret),
+        xUserId: verification.userId,
+        xHandle: verification.username,
+      },
+    });
+
+    revalidatePath("/dashboard/settings");
+    return { success: true, username: verification.username };
+  } catch (error) {
+    console.error("[SETTINGS] saveApiKeys error:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: `Hata: ${message}` };
   }
-
-  // Encrypt and save
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: {
-      xApiKey: encrypt(data.xApiKey),
-      xApiSecret: encrypt(data.xApiSecret),
-      xAccessToken: encrypt(data.xAccessToken),
-      xAccessSecret: encrypt(data.xAccessSecret),
-      xUserId: verification.userId,
-      xHandle: verification.username,
-    },
-  });
-
-  revalidatePath("/dashboard/settings");
-  return { success: true, username: verification.username };
 }
 
 export async function getApiKeyStatus() {
