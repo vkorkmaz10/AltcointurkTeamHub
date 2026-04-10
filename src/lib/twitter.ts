@@ -31,7 +31,9 @@ export async function replyToTweet(
     const client = createTwitterClient(credentials);
     const rwClient = client.readWrite;
 
+    console.log(`[TWITTER] Sending reply to tweet ${tweetId}, text length: ${text.length}`);
     const { data } = await rwClient.v2.reply(text, tweetId);
+    console.log(`[TWITTER] Reply sent successfully, reply ID: ${data.id}`);
 
     return {
       success: true,
@@ -39,6 +41,12 @@ export async function replyToTweet(
     };
   } catch (error: unknown) {
     const err = error as { code?: number; message?: string; data?: { detail?: string } };
+
+    console.error(`[TWITTER] Reply error for tweet ${tweetId}:`, {
+      code: err.code,
+      message: err.message,
+      detail: err.data?.detail,
+    });
 
     // Handle rate limiting
     if (err.code === 429) {
@@ -67,11 +75,19 @@ export async function likeTweet(
     const client = createTwitterClient(credentials);
     const rwClient = client.readWrite;
 
+    console.log(`[TWITTER] Liking tweet ${tweetId} as user ${userId}`);
     await rwClient.v2.like(userId, tweetId);
+    console.log(`[TWITTER] Like successful for tweet ${tweetId}`);
 
     return { success: true };
   } catch (error: unknown) {
     const err = error as { code?: number; message?: string; data?: { detail?: string } };
+
+    console.error(`[TWITTER] Like error for tweet ${tweetId}:`, {
+      code: err.code,
+      message: err.message,
+      detail: err.data?.detail,
+    });
 
     if (err.code === 429) {
       return {

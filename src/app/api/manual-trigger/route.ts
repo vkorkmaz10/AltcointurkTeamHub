@@ -24,6 +24,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { tweetId, tweetContent, tweetAuthor, dryRun = true } = body;
 
+  console.log("[MANUAL-TRIGGER] Request received:", {
+    tweetId,
+    tweetAuthor,
+    dryRun,
+    contentLength: tweetContent?.length,
+  });
+
   if (!tweetId || !tweetContent || !tweetAuthor) {
     return NextResponse.json({
       error: "Eksik alanlar",
@@ -53,6 +60,7 @@ export async function POST(req: NextRequest) {
       },
     });
     log.push({ step: "tweet_saved", tweetDbId: tweet.id });
+    console.log("[MANUAL-TRIGGER] Tweet saved to DB:", tweet.id);
 
     // 2. Aktif kullanıcıları bul (tweet sahibi hariç)
     const users = await prisma.user.findMany({
@@ -68,8 +76,15 @@ export async function POST(req: NextRequest) {
     log.push({
       step: "active_users",
       count: users.length,
-      users: users.map((u) => ({ name: u.displayName, handle: u.xHandle })),
+      users: users.map((u) => ({
+        name: u.displayName,
+        handle: u.xHandle,
+        hasXUserId: !!u.xUserId,
+      })),
     });
+    console.log(`[MANUAL-TRIGGER] Found ${users.length} active users:`,
+      users.map((u) => `${u.displayName} (@${u.xHandle}, xUserId: ${u.xUserId ? "✅" : "❌"})`)
+    );
 
     if (users.length === 0) {
       return NextResponse.json({
@@ -116,6 +131,7 @@ export async function POST(req: NextRequest) {
         userResult.interactionId = interaction.id;
 
         if (!dryRun) {
+          console.log(`[MANUAL-TRIGGER] LIVE mode — sending reply for ${user.displayName}`);
           // Gerçek gönderim
           const credentials = {
             apiKey: decrypt(user.xApiKey!),
@@ -129,11 +145,17 @@ export async function POST(req: NextRequest) {
           userResult.replySent = replyResult.success;
           userResult.replyTweetId = replyResult.replyId;
           userResult.replyError = replyResult.error;
+          console.log(`[MANUAL-TRIGGER] Reply result for ${user.displayName}:`, replyResult);
 
           // Like gönder
+          let likeResult: { success: boolean; error?: string } = { success: false, error: "xUserId yok" };
           if (user.xUserId) {
-            const likeResult = await likeTweet(credentials, user.xUserId, tweetId);
+            likeResult = await likeTweet(credentials, user.xUserId, tweetId);
             userResult.liked = likeResult.success;
+            userResult.likeError = likeResult.error;
+          } else {
+            userResult.liked = false;
+            userResult.likeError = "xUserId yok — API key doğrulaması yapılmalı";
           }
 
           // DB güncelle
@@ -142,15 +164,18 @@ export async function POST(req: NextRequest) {
             data: {
               status: replyResult.success ? "SENT" : "FAILED",
               replyTweetId: replyResult.replyId || null,
-              liked: !!user.xUserId,
+              liked: likeResult.success,
               executedAt: new Date(),
-              errorMessage: replyResult.error || null,
+              errorMessage: replyResult.success
+                ? (likeResult.success ? null : `Like hatası: ${likeResult.error}`)
+                : replyResult.error || "Unknown error",
             },
           });
         }
 
         userResult.status = dryRun ? "DRY_RUN" : "SENT";
       } catch (err) {
+        console.error(`[MANUAL-TRIGGER] Error for user ${user.displayName}:`, err);
         userResult.status = "ERROR";
         userResult.error = String(err);
       }

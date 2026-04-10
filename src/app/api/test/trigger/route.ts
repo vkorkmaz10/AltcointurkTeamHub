@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
       inngestResult = await inngest.send({
         name: "tweet/new",
         data: {
-          tweetId: tweet.id,
-          tweetExternalId: tweetId,
+          tweetId: tweet.tweetId,
+          tweetDbId: tweet.id,
           authorHandle,
           content,
         },
