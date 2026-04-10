@@ -1,0 +1,88 @@
+// Altcointurk Team Hub — Prisma Schema
+// Database: Neon PostgreSQL (Production) / SQLite (Local Dev)
+// Switch provider via DATABASE_URL in .env
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MODELS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  username      String   @unique
+  displayName   String
+  approved      Boolean  @default(false)
+  password      String   // bcrypt hash
+  xHandle       String?  @unique
+  xApiKey       String?  // AES-256-GCM encrypted
+  xApiSecret    String?  // AES-256-GCM encrypted
+  xAccessToken  String?  // AES-256-GCM encrypted
+  xAccessSecret String?  // AES-256-GCM encrypted
+  xUserId       String?  // X user ID (for like endpoint)
+  skillContent  String?  @db.Text
+  status        String   @default("ACTIVE")  // ACTIVE | PASSIVE
+  role          String   @default("MEMBER")  // ADMIN | MEMBER
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  interactions Interaction[]
+
+  @@map("users")
+}
+
+model Tweet {
+  id           String   @id @default(cuid())
+  tweetId      String   @unique
+  authorHandle String
+  authorName   String
+  content      String   @db.Text
+  tweetUrl     String
+  isOriginal   Boolean  @default(true)
+  isRetweet    Boolean  @default(false)
+  isReply      Boolean  @default(false)
+  detectedAt   DateTime @default(now())
+  processed    Boolean  @default(false)
+
+  interactions Interaction[]
+
+  @@map("tweets")
+}
+
+model Interaction {
+  id           String   @id @default(cuid())
+  userId       String
+  tweetId      String
+  replyText    String?  @db.Text
+  replyTweetId String?
+  liked        Boolean  @default(false)
+  status       String   @default("PENDING") // PENDING | GENERATING | SCHEDULED | SENT | FAILED | SKIPPED
+  scheduledAt  DateTime
+  executedAt   DateTime?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tweetId])
+  @@map("interactions")
+}
+
+model WatcherLog {
+  id        String   @id @default(cuid())
+  type      String   // "run_start", "run_complete", "error", "credit_warning"
+  message   String   @db.Text
+  metadata  String?  @db.Text // JSON string for extra data
+  createdAt DateTime @default(now())
+
+  @@map("watcher_logs")
+}
