@@ -12,6 +12,8 @@ export async function GET() {
     : "❌ missing";
   checks.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY ? "✅ set" : "❌ missing";
   checks.GEMINI_API_KEY = process.env.GEMINI_API_KEY ? "✅ set" : "❌ missing";
+  checks.INNGEST_EVENT_KEY = process.env.INNGEST_EVENT_KEY ? "✅ set" : "❌ missing";
+  checks.INNGEST_SIGNING_KEY = process.env.INNGEST_SIGNING_KEY ? "✅ set" : "❌ missing";
   checks.NODE_ENV = process.env.NODE_ENV || "unknown";
 
   // 2. DB bağlantı testi
