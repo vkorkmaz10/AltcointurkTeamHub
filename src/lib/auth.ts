@@ -12,36 +12,41 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            return null;
+          }
+
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email as string },
+          });
+
+          if (!user) {
+            return null;
+          }
+
+          const passwordValid = await bcrypt.compare(
+            credentials.password as string,
+            user.password
+          );
+
+          if (!passwordValid) {
+            return null;
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.displayName,
+            role: user.role as "ADMIN" | "MEMBER",
+            approved: user.approved,
+            xHandle: user.xHandle,
+            status: user.status as "ACTIVE" | "PASSIVE",
+          };
+        } catch (error) {
+          console.error("[AUTH] authorize error:", error);
           return null;
         }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        });
-
-        if (!user) {
-          return null;
-        }
-
-        const passwordValid = await bcrypt.compare(
-          credentials.password as string,
-          user.password
-        );
-
-        if (!passwordValid) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.displayName,
-          role: user.role as "ADMIN" | "MEMBER",
-          approved: user.approved,
-          xHandle: user.xHandle,
-          status: user.status as "ACTIVE" | "PASSIVE",
-        };
       },
     }),
   ],
@@ -50,6 +55,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   trustHost: true,
+  debug: process.env.NODE_ENV === "development",
   pages: {
     signIn: "/login",
   },
