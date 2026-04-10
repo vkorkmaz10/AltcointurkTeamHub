@@ -2,11 +2,12 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Model fallback chain: try faster/cheaper models first, fall back on quota errors
+// Model fallback chain: try cheaper models first, fall back on quota/503 errors
 const MODELS = [
   "gemini-2.0-flash-lite",
   "gemini-2.0-flash",
-  "gemini-1.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
 ] as const;
 
 async function generateWithFallback(
@@ -34,8 +35,8 @@ async function generateWithFallback(
     } catch (error: unknown) {
       lastError = error;
       const errMsg = String(error);
-      // Only fallback on quota/rate errors, not on other failures
-      if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("quota")) {
+      // Fallback on quota/rate/unavailable errors, not on other failures
+      if (errMsg.includes("429") || errMsg.includes("503") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("quota") || errMsg.includes("high demand")) {
         console.warn(`[GEMINI] Model ${model} quota exceeded, trying next...`);
         continue;
       }
